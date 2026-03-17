@@ -22,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role'
     ];
 
     /**
@@ -45,5 +46,17 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    // Relation: Loan requests submitted by this user
+    public function loans()
+    {
+        return $this->hasMany(Loan::class, 'user_id');
+    }
+
+    // Relation: Loan requests approved by this user (if Admin/Aslab)
+    public function approvedLoans()
+    {
+        return $this->hasMany(Loan::class, 'approved_by');
     }
 }
