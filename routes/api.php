@@ -26,8 +26,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // User & Aslab
     Route::get('/loans', [LoanController::class, 'index']);
+
+    Route::get('/rooms', [RoomController::class, 'index']);
     
-    //
+    //for desk management
     Route::get('/rooms/{id}/desks', [RoomController::class, 'indexDesks']); 
     Route::get('/rooms/{id}/available-desks', [RoomController::class, 'availableDesks']);
 

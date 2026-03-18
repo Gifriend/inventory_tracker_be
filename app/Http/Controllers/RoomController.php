@@ -8,6 +8,17 @@ use Illuminate\Http\Request;
 
 class RoomController extends Controller
 {
+    // Fungsi untuk mengambil semua daftar lab/ruangan
+    public function index()
+    {
+        $rooms = Room::all();
+        
+        return response()->json([
+            'message' => 'Berhasil mengambil daftar ruangan',
+            'data' => $rooms
+        ]);
+    }
+    
     public function store(Request $request)
     {
         $request->validate(['name' => 'required|string|unique:rooms,name']);
