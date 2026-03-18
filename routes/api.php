@@ -24,6 +24,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/loans/check-out', [LoanController::class, 'checkOut']);
     });
 
+    // User & Aslab
+    Route::get('/loans', [LoanController::class, 'index']);
+    
+    //
+    Route::get('/rooms/{id}/desks', [RoomController::class, 'indexDesks']); 
+    Route::get('/rooms/{id}/available-desks', [RoomController::class, 'availableDesks']);
+
     // Aslab (Admin) only
     Route::middleware('role:aslab')->group(function () {
         Route::patch('/loans/{id}/approve', [LoanController::class, 'approve']);

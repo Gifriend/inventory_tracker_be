@@ -45,4 +45,32 @@ class RoomController extends Controller
         $desks = Desk::where('room_id', $id)->where('status', 'available')->get();
         return response()->json(['data' => $desks]);
     }
+
+    public function indexDesks($id)
+    {
+        $room = Room::with(['desks' => function($query) {
+            $query->orderBy('id', 'asc'); // short table from 1
+        }])->findOrFail($id);
+
+        // QR code for table
+        $desks = $room->desks->map(function ($desk) use ($room) {
+            return [
+                'id' => $desk->id,
+                'desk_number' => $desk->desk_number,
+                'status' => $desk->status,
+                //text fot QR code
+                'qr_payload' => json_encode([
+                    'room_id' => $room->id,
+                    'desk_id' => $desk->id
+                ])
+            ];
+        });
+
+        return response()->json([
+            'message' => 'Berhasil mengambil data meja',
+            'room_name' => $room->name,
+            'data' => $desks
+        ]);
+    }
+
 }
