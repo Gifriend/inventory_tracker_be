@@ -16,6 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
         ]);
+
+        // Logging request/response untuk seluruh request aplikasi
+        $middleware->append(\App\Http\Middleware\ApiLoggingMiddleware::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
