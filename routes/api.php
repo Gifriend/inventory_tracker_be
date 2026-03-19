@@ -14,6 +14,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Accessible by User and Aslab
     Route::get('/loans', [LoanController::class, 'index']);
+    Route::get('/loans/history', [LoanController::class, 'history']);
     Route::get('/rooms/{id}/available-desks', [RoomController::class, 'availableDesks']);
 
     // User only
@@ -26,6 +27,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // User & Aslab
     Route::get('/loans', [LoanController::class, 'index']);
+
+    // Desk QR
+    Route::get('/desks/{id}/qr', [LoanController::class, 'deskQr']);
 
     Route::get('/rooms', [RoomController::class, 'index']);
     

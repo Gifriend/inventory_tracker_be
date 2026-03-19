@@ -47,7 +47,16 @@ class LoanController extends Controller
             $query->where('user_id', $user->id);
         }
 
-        return response()->json(['data' => $query->get()]);
+        $items = $query->get();
+
+        if ($items->isEmpty()) {
+            return response()->json([
+                'message' => 'Kodong belum ada data',
+                'data' => []
+            ], 200);
+        }
+
+        return response()->json(['data' => $items]);
     }
 
     // Aslab approves loan
@@ -77,7 +86,7 @@ class LoanController extends Controller
                 'approved_by' => Auth::id(), // Store Aslab user ID
             ]);
 
-            $desk->update(['status' => 'maintenance']);
+            $desk->update(['status' => 'occupied']);
         });
 
         return response()->json([
@@ -133,7 +142,15 @@ class LoanController extends Controller
         //     return response()->json(['message' => 'Belum waktunya peminjaman Anda.'], 400);
         // }
 
-        $loan->update(['check_in_time' => $now]);
+        DB::transaction(function () use ($loan, $request, $now) {
+            $loan->update(['check_in_time' => $now]);
+
+            // Ensure desk status reflects that it's in use
+            $desk = Desk::find($request->desk_id);
+            if ($desk && $desk->status !== 'occupied') {
+                $desk->update(['status' => 'occupied']);
+            }
+        });
 
         return response()->json([
             'message' => 'Berhasil Check-In. Selamat menggunakan fasilitas lab!',
@@ -171,6 +188,58 @@ class LoanController extends Controller
         return response()->json([
             'message' => 'Berhasil Check-Out. Terima kasih!',
             'data' => $loan
+        ]);
+    }
+
+    // Loan history (completed or rejected / past loans)
+    public function history()
+    {
+        $user = Auth::user();
+        $query = Loan::with(['user:id,name', 'room:id,name', 'desk:id,desk_number']);
+
+        if ($user->role === 'user') {
+            $query->where('user_id', $user->id);
+        }
+
+        // History: completed, rejected or already checked-out
+        $items = $query->where(function ($q) {
+            $q->whereIn('status', ['completed', 'rejected'])
+              ->orWhereNotNull('check_out_time');
+        })->get();
+
+        if ($items->isEmpty()) {
+            return response()->json([
+                'message' => 'Kodong belum ada data',
+                'data' => []
+            ], 200);
+        }
+
+        return response()->json(['data' => $items]);
+    }
+
+    // Return a QR code URL for a desk so client can render or download it
+    public function deskQr($id)
+    {
+        $desk = Desk::findOrFail($id);
+
+        // Build a simple payload the client can encode in a QR (or embed the returned QR URL)
+        $payload = json_encode([
+            'room_id' => $desk->room_id,
+            'desk_id' => $desk->id,
+            'type' => 'desk_qr'
+        ]);
+
+        // Use Google Chart API as a quick way to provide a QR image URL without extra packages
+        $qrUrl = 'https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=' . urlencode($payload);
+
+        return response()->json([
+            'desk' => [
+                'id' => $desk->id,
+                'desk_number' => $desk->desk_number,
+                'room_id' => $desk->room_id
+            ],
+            'qr_url' => $qrUrl,
+            'qr_payload' => $payload
         ]);
     }
 }
