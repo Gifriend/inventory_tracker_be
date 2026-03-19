@@ -80,5 +80,30 @@ class LoanFlowTest extends TestCase
             'id' => $desk->id,
             'status' => 'maintenance' // Or 'occupied', depending on your system
         ]);
+
+        // User checks in using scanned QR payload (room_id + desk_id)
+        $responseCheckIn = $this->actingAs($user, 'sanctum')->postJson('/api/loans/check-in', [
+            'room_id' => $room->id,
+            'desk_id' => $desk->id,
+        ]);
+
+        $responseCheckIn->assertStatus(200)
+            ->assertJsonPath('message', 'Berhasil Check-In. Selamat menggunakan fasilitas lab!');
+
+        // User checks out and desk becomes available again
+        $responseCheckOut = $this->actingAs($user, 'sanctum')->postJson('/api/loans/check-out');
+
+        $responseCheckOut->assertStatus(200)
+            ->assertJsonPath('message', 'Berhasil Check-Out. Terima kasih!');
+
+        $this->assertDatabaseHas('loans', [
+            'id' => $loanId,
+            'status' => 'completed',
+        ]);
+
+        $this->assertDatabaseHas('desks', [
+            'id' => $desk->id,
+            'status' => 'available',
+        ]);
     }
 }

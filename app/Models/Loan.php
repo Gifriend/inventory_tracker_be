@@ -18,6 +18,8 @@ class Loan extends Model
         'status',
         'start_time',
         'end_time',
+        'check_in_time',
+        'check_out_time',
         'approved_by',
         'admin_notes'
     ];
@@ -25,6 +27,8 @@ class Loan extends Model
     protected $casts = [
         'start_time' => 'datetime',
         'end_time' => 'datetime',
+        'check_in_time' => 'datetime',
+        'check_out_time' => 'datetime',
     ];
 
     public function user(): BelongsTo

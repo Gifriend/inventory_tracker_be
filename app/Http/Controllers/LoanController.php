@@ -75,7 +75,7 @@ class LoanController extends Controller
                 'approved_by' => Auth::id(), // Store Aslab user ID
             ]);
 
-            $desk->update(['status' => 'occupied']); // Or use a new 'occupied' status in your DB
+            $desk->update(['status' => 'maintenance']);
         });
 
         return response()->json([
