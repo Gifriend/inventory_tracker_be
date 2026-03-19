@@ -14,6 +14,29 @@ class LoanFlowTest extends TestCase
 {
     use RefreshDatabase; // Reset database on each test
 
+    public function test_user_can_submit_loan_request_without_pdf()
+    {
+        /** @var \App\Models\User $user */
+        $user = User::factory()->create(['role' => 'user']);
+
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/loans', [
+            'start_time' => now()->addDay()->toDateTimeString(),
+            'end_time' => now()->addDays(2)->toDateTimeString(),
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('message', 'Permohonan peminjaman berhasil dikirim');
+
+        $loanId = $response->json('data.id');
+
+        $this->assertDatabaseHas('loans', [
+            'id' => $loanId,
+            'status' => 'pending',
+            'user_id' => $user->id,
+            'document_path' => null,
+        ]);
+    }
+
     public function test_full_loan_approval_flow()
     {
         Storage::fake('public'); // Mock storage to prevent disk usage during testing

@@ -13,12 +13,14 @@ class LoanController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'pdf_file' => 'required|file|mimes:pdf|max:2048',
+            'pdf_file' => 'nullable|file|mimes:pdf|max:2048',
             'start_time' => 'required|date',
             'end_time' => 'required|date|after:start_time',
         ]);
 
-        $path = $request->file('pdf_file')->store('loans', 'public');
+        $path = $request->hasFile('pdf_file')
+            ? $request->file('pdf_file')->store('loans', 'public')
+            : null;
 
         $loan = Loan::create([
             'user_id' => Auth::id(),
