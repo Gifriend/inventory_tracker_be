@@ -51,7 +51,7 @@ class LoanController extends Controller
 
         if ($items->isEmpty()) {
             return response()->json([
-                'message' => 'Kodong belum ada data',
+                'message' => 'Belum ada data',
                 'data' => []
             ], 200);
         }
@@ -67,18 +67,30 @@ class LoanController extends Controller
             'desk_id' => 'required|exists:desks,id'
         ]);
 
-        $loan = Loan::findOrFail($id);
-        
-        $desk = Desk::where('id', $request->desk_id)
-                    ->where('room_id', $request->room_id)
-                    ->firstOrFail();
+        $result = DB::transaction(function () use ($id, $request) {
+            $loan = Loan::whereKey($id)->lockForUpdate()->firstOrFail();
 
-        if ($desk->status !== 'available') {
-            return response()->json(['message' => 'Meja sudah terpakai'], 400);
-        }
+            if ($loan->status !== 'pending') {
+                return [
+                    'ok' => false,
+                    'message' => 'Permohonan sudah diproses sebelumnya',
+                    'code' => 409,
+                ];
+            }
 
-        // Use DB transaction for data consistency
-        DB::transaction(function () use ($loan, $desk, $request) {
+            $desk = Desk::where('id', $request->desk_id)
+                        ->where('room_id', $request->room_id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+            if ($desk->status !== 'available') {
+                return [
+                    'ok' => false,
+                    'message' => 'Meja sudah terpakai',
+                    'code' => 409,
+                ];
+            }
+
             $loan->update([
                 'status' => 'approved',
                 'room_id' => $request->room_id,
@@ -87,11 +99,20 @@ class LoanController extends Controller
             ]);
 
             $desk->update(['status' => 'occupied']);
+
+            return [
+                'ok' => true,
+                'loan' => $loan->fresh(),
+            ];
         });
+
+        if (!$result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
+        }
 
         return response()->json([
             'message' => 'Permohonan disetujui',
-            'data' => $loan
+            'data' => $result['loan']
         ]);
     }
 
@@ -122,72 +143,105 @@ class LoanController extends Controller
             'desk_id' => 'required|exists:desks,id'
         ]);
 
-        $userId = Auth::id();
-        $now = now();
+        $result = DB::transaction(function () use ($request) {
+            $loan = Loan::where('user_id', Auth::id())
+                        ->where('status', 'approved')
+                        ->where('room_id', $request->room_id)
+                        ->where('desk_id', $request->desk_id)
+                        ->whereNull('check_in_time')
+                        ->lockForUpdate()
+                        ->first();
 
-        // Cari permohonan yang statusnya approved, miliknya, di meja yang sesuai, dan waktunya cocok
-        $loan = Loan::where('user_id', $userId)
-                    ->where('status', 'approved')
-                    ->where('room_id', $request->room_id)
-                    ->where('desk_id', $request->desk_id)
-                    ->whereNull('check_in_time') // Belum check-in sebelumnya
-                    ->first();
+            if (!$loan) {
+                return [
+                    'ok' => false,
+                    'message' => 'Tidak ada jadwal peminjaman valid untuk meja ini atau Anda sudah Check-In.',
+                    'code' => 404,
+                ];
+            }
 
-        if (!$loan) {
-            return response()->json(['message' => 'Tidak ada jadwal peminjaman valid untuk meja ini atau Anda sudah Check-In.'], 404);
-        }
+            $desk = Desk::whereKey($request->desk_id)->lockForUpdate()->first();
 
-        // Opsional: Validasi apakah dia datang terlalu cepat atau telat
-        // if ($now->lt($loan->start_time)) {
-        //     return response()->json(['message' => 'Belum waktunya peminjaman Anda.'], 400);
-        // }
+            if (!$desk || $desk->room_id !== (int) $request->room_id) {
+                return [
+                    'ok' => false,
+                    'message' => 'Meja tidak valid untuk ruangan ini.',
+                    'code' => 409,
+                ];
+            }
 
-        DB::transaction(function () use ($loan, $request, $now) {
-            $loan->update(['check_in_time' => $now]);
+            if ($desk->status === 'maintenance') {
+                return [
+                    'ok' => false,
+                    'message' => 'Meja sedang maintenance.',
+                    'code' => 409,
+                ];
+            }
 
-            // Ensure desk status reflects that it's in use
-            $desk = Desk::find($request->desk_id);
-            if ($desk && $desk->status !== 'occupied') {
+            $loan->update(['check_in_time' => now()]);
+
+            if ($desk->status !== 'occupied') {
                 $desk->update(['status' => 'occupied']);
             }
+
+            return [
+                'ok' => true,
+                'loan' => $loan->fresh(),
+            ];
         });
+
+        if (!$result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
+        }
 
         return response()->json([
             'message' => 'Berhasil Check-In. Selamat menggunakan fasilitas lab!',
-            'data' => $loan
+            'data' => $result['loan']
         ]);
     }
 
     // 6. User Check-Out (Selesai menggunakan meja)
     public function checkOut(Request $request)
     {
-        $loan = Loan::where('user_id', Auth::id())
-                    ->where('status', 'approved')
-                    ->whereNotNull('check_in_time')
-                    ->whereNull('check_out_time')
-                    ->first();
+        $result = DB::transaction(function () {
+            $loan = Loan::where('user_id', Auth::id())
+                        ->where('status', 'approved')
+                        ->whereNotNull('check_in_time')
+                        ->whereNull('check_out_time')
+                        ->lockForUpdate()
+                        ->first();
 
-        if (!$loan) {
-            return response()->json(['message' => 'Anda belum Check-In atau tidak ada sesi aktif.'], 404);
-        }
+            if (!$loan) {
+                return [
+                    'ok' => false,
+                    'message' => 'Anda belum Check-In atau tidak ada sesi aktif.',
+                    'code' => 404,
+                ];
+            }
 
-        DB::transaction(function () use ($loan) {
-            // Tandai waktu selesai dan ubah status jadi completed
             $loan->update([
                 'check_out_time' => now(),
                 'status' => 'completed'
             ]);
 
-            // Kembalikan status meja menjadi available agar bisa dipakai orang lain
-            $desk = Desk::find($loan->desk_id);
+            $desk = Desk::whereKey($loan->desk_id)->lockForUpdate()->first();
             if ($desk) {
                 $desk->update(['status' => 'available']);
             }
+
+            return [
+                'ok' => true,
+                'loan' => $loan->fresh(),
+            ];
         });
+
+        if (!$result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
+        }
 
         return response()->json([
             'message' => 'Berhasil Check-Out. Terima kasih!',
-            'data' => $loan
+            'data' => $result['loan']
         ]);
     }
 
@@ -209,7 +263,7 @@ class LoanController extends Controller
 
         if ($items->isEmpty()) {
             return response()->json([
-                'message' => 'Kodong belum ada data',
+                'message' => 'Belum ada data',
                 'data' => []
             ], 200);
         }

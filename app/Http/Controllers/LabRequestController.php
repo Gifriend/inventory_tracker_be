@@ -5,6 +5,7 @@ use App\Models\LabRequest;
 use App\Models\Table;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class LabRequestController extends Controller
 {
@@ -54,41 +55,78 @@ class LabRequestController extends Controller
             'table_id' => 'required|exists:tables,id'
         ]);
 
-        $labRequest = LabRequest::findOrFail($id);
-        
-        // Ensure table is available
-        $table = Table::where('id', $request->table_id)
-                      ->where('lab_id', $request->lab_id)
-                      ->firstOrFail();
+        $result = DB::transaction(function () use ($id, $request) {
+            $labRequest = LabRequest::whereKey($id)->lockForUpdate()->firstOrFail();
 
-        if ($table->status !== 'available') {
-            return response()->json(['message' => 'Meja sudah terpakai'], 400);
+            if ($labRequest->status !== 'pending') {
+                return [
+                    'ok' => false,
+                    'message' => 'Permohonan sudah diproses sebelumnya',
+                    'code' => 409,
+                ];
+            }
+
+            $table = Table::where('id', $request->table_id)
+                          ->where('lab_id', $request->lab_id)
+                          ->lockForUpdate()
+                          ->firstOrFail();
+
+            if ($table->status !== 'available') {
+                return [
+                    'ok' => false,
+                    'message' => 'Meja sudah terpakai',
+                    'code' => 409,
+                ];
+            }
+
+            $labRequest->update([
+                'status' => 'approved',
+                'lab_id' => $request->lab_id,
+                'table_id' => $request->table_id
+            ]);
+
+            $table->update(['status' => 'occupied']);
+
+            return [
+                'ok' => true,
+                'request' => $labRequest->fresh(),
+            ];
+        });
+
+        if (!$result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
         }
-
-        // Update request status
-        $labRequest->update([
-            'status' => 'approved',
-            'lab_id' => $request->lab_id,
-            'table_id' => $request->table_id
-        ]);
-
-        // Update table status to occupied
-        $table->update(['status' => 'occupied']);
 
         return response()->json([
             'message' => 'Permohonan disetujui',
-            'data' => $labRequest
+            'data' => $result['request']
         ]);
     }
 
     // Aslab rejects request
     public function reject($id)
     {
-        $labRequest = LabRequest::findOrFail($id);
-        
-        $labRequest->update([
-            'status' => 'rejected'
-        ]);
+        $result = DB::transaction(function () use ($id) {
+            $labRequest = LabRequest::whereKey($id)->lockForUpdate()->firstOrFail();
+
+            if ($labRequest->status !== 'pending') {
+                return [
+                    'ok' => false,
+                    'message' => 'Permohonan sudah diproses sebelumnya',
+                    'code' => 409,
+                ];
+            }
+
+            $labRequest->update([
+                'status' => 'rejected'
+            ]);
+
+            return ['ok' => true];
+        });
+
+        if (!$result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
+        }
 
         return response()->json(['message' => 'Permohonan ditolak']);
     }
