@@ -24,7 +24,7 @@ class AuthController extends Controller
                   'role' => $validated['role'],
             ]);
 
-            return response()->json(['message' => 'Registrasi berhasil', 'data' => $user], 201);
+            return $this->successResponse($user, 'Registrasi berhasil', 201);
       }
 
       public function login(Request $request)
@@ -34,14 +34,14 @@ class AuthController extends Controller
             $user = User::where('email', $request->email)->first();
 
             if (!$user || !Hash::check($request->password, $user->password)) {
-                  return response()->json(['message' => 'Kredensial salah'], 401);
+                  return $this->errorResponse('Kredensial salah', 401);
             }
 
             $token = $user->createToken('auth_token')->plainTextToken;
 
-            return response()->json([
+            return $this->successResponse([
                   'token' => $token,
                   'user_data' => $user
-            ]);
+            ], 'Login berhasil');
       }
 }

@@ -12,7 +12,7 @@ class LabController extends Controller
       {
             $request->validate(['name' => 'required|string|unique:labs,name']);
             $lab = Lab::create(['name' => $request->name]);
-            return response()->json(['message' => 'Lab berhasil ditambahkan', 'data' => $lab], 201);
+            return $this->successResponse($lab, 'Lab berhasil ditambahkan', 201);
       }
 
       public function storeTables(Request $request, $id)
@@ -37,12 +37,17 @@ class LabController extends Controller
 
             Table::insert($tables);
 
-            return response()->json(['message' => 'Range meja berhasil ditambahkan']);
+            return $this->successResponse(null, 'Range meja berhasil ditambahkan');
       }
 
       public function availableTables($id)
       {
             $tables = Table::where('lab_id', $id)->where('status', 'available')->get();
-            return response()->json(['data' => $tables]);
+
+            if ($tables->isEmpty()) {
+                  return $this->successResponse([], 'Belum ada data');
+            }
+
+            return $this->successResponse($tables, 'Berhasil mengambil data meja tersedia');
       }
 }

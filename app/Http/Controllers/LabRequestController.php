@@ -27,10 +27,7 @@ class LabRequestController extends Controller
             'status' => 'pending'
         ]);
 
-        return response()->json([
-            'message' => 'Permohonan berhasil dikirim',
-            'data' => $labRequest
-        ], 201);
+        return $this->successResponse($labRequest, 'Permohonan berhasil dikirim', 201);
     }
 
     // Aslab and User view request list
@@ -44,7 +41,13 @@ class LabRequestController extends Controller
             $query->where('user_id', $user->id);
         }
 
-        return response()->json(['data' => $query->get()]);
+        $items = $query->get();
+
+        if ($items->isEmpty()) {
+            return $this->successResponse([], 'Belum ada data');
+        }
+
+        return $this->successResponse($items, 'Berhasil mengambil data permohonan');
     }
 
     // Aslab approves request
@@ -94,13 +97,10 @@ class LabRequestController extends Controller
         });
 
         if (!$result['ok']) {
-            return response()->json(['message' => $result['message']], $result['code']);
+            return $this->errorResponse($result['message'], $result['code']);
         }
 
-        return response()->json([
-            'message' => 'Permohonan disetujui',
-            'data' => $result['request']
-        ]);
+        return $this->successResponse($result['request'], 'Permohonan disetujui');
     }
 
     // Aslab rejects request
@@ -125,9 +125,9 @@ class LabRequestController extends Controller
         });
 
         if (!$result['ok']) {
-            return response()->json(['message' => $result['message']], $result['code']);
+            return $this->errorResponse($result['message'], $result['code']);
         }
 
-        return response()->json(['message' => 'Permohonan ditolak']);
+        return $this->successResponse(null, 'Permohonan ditolak');
     }
 }

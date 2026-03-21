@@ -30,10 +30,7 @@ class LoanController extends Controller
             'status' => 'pending'
         ]);
 
-        return response()->json([
-            'message' => 'Permohonan peminjaman berhasil dikirim',
-            'data' => $loan
-        ], 201);
+        return $this->successResponse($loan, 'Permohonan peminjaman berhasil dikirim', 201);
     }
 
     // View loan list
@@ -50,13 +47,10 @@ class LoanController extends Controller
         $items = $query->get();
 
         if ($items->isEmpty()) {
-            return response()->json([
-                'message' => 'Belum ada data',
-                'data' => []
-            ], 200);
+            return $this->successResponse([], 'Belum ada data');
         }
 
-        return response()->json(['data' => $items]);
+        return $this->successResponse($items, 'Berhasil mengambil data pinjaman');
     }
 
     // Aslab approves loan
@@ -107,13 +101,10 @@ class LoanController extends Controller
         });
 
         if (!$result['ok']) {
-            return response()->json(['message' => $result['message']], $result['code']);
+            return $this->errorResponse($result['message'], $result['code']);
         }
 
-        return response()->json([
-            'message' => 'Permohonan disetujui',
-            'data' => $result['loan']
-        ]);
+        return $this->successResponse($result['loan'], 'Permohonan disetujui');
     }
 
     // Aslab rejects loan
@@ -131,7 +122,7 @@ class LoanController extends Controller
             'approved_by' => Auth::id(),
         ]);
 
-        return response()->json(['message' => 'Permohonan ditolak']);
+        return $this->successResponse(null, 'Permohonan ditolak');
     }
 
     // 5. User Check-In (Scan QR Meja)
@@ -191,13 +182,10 @@ class LoanController extends Controller
         });
 
         if (!$result['ok']) {
-            return response()->json(['message' => $result['message']], $result['code']);
+            return $this->errorResponse($result['message'], $result['code']);
         }
 
-        return response()->json([
-            'message' => 'Berhasil Check-In. Selamat menggunakan fasilitas lab!',
-            'data' => $result['loan']
-        ]);
+        return $this->successResponse($result['loan'], 'Berhasil Check-In. Selamat menggunakan fasilitas lab!');
     }
 
     // 6. User Check-Out (Selesai menggunakan meja)
@@ -236,13 +224,10 @@ class LoanController extends Controller
         });
 
         if (!$result['ok']) {
-            return response()->json(['message' => $result['message']], $result['code']);
+            return $this->errorResponse($result['message'], $result['code']);
         }
 
-        return response()->json([
-            'message' => 'Berhasil Check-Out. Terima kasih!',
-            'data' => $result['loan']
-        ]);
+        return $this->successResponse($result['loan'], 'Berhasil Check-Out. Terima kasih!');
     }
 
     // Loan history (completed or rejected / past loans)
@@ -262,13 +247,10 @@ class LoanController extends Controller
         })->get();
 
         if ($items->isEmpty()) {
-            return response()->json([
-                'message' => 'Belum ada data',
-                'data' => []
-            ], 200);
+            return $this->successResponse([], 'Belum ada data');
         }
 
-        return response()->json(['data' => $items]);
+        return $this->successResponse($items, 'Berhasil mengambil riwayat pinjaman');
     }
 
     // Return a QR code URL for a desk so client can render or download it
@@ -286,7 +268,7 @@ class LoanController extends Controller
         // Use Google Chart API as a quick way to provide a QR image URL without extra packages
         $qrUrl = 'https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=' . urlencode($payload);
 
-        return response()->json([
+        return $this->successResponse([
             'desk' => [
                 'id' => $desk->id,
                 'desk_number' => $desk->desk_number,
@@ -294,6 +276,6 @@ class LoanController extends Controller
             ],
             'qr_url' => $qrUrl,
             'qr_payload' => $payload
-        ]);
+        ], 'Berhasil mengambil QR meja');
     }
 }

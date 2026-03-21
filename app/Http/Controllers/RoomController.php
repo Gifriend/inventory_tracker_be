@@ -12,18 +12,19 @@ class RoomController extends Controller
     public function index()
     {
         $rooms = Room::all();
-        
-        return response()->json([
-            'message' => 'Berhasil mengambil daftar ruangan',
-            'data' => $rooms
-        ]);
+
+        if ($rooms->isEmpty()) {
+            return $this->successResponse([], 'Belum ada data');
+        }
+
+        return $this->successResponse($rooms, 'Berhasil mengambil daftar ruangan');
     }
     
     public function store(Request $request)
     {
         $request->validate(['name' => 'required|string|unique:rooms,name']);
         $room = Room::create(['name' => $request->name]);
-        return response()->json(['message' => 'Ruangan berhasil ditambahkan', 'data' => $room], 201);
+        return $this->successResponse($room, 'Ruangan berhasil ditambahkan', 201);
     }
 
     public function storeDesks(Request $request, $id)
@@ -48,13 +49,18 @@ class RoomController extends Controller
 
         Desk::insert($desks);
 
-        return response()->json(['message' => 'Range meja berhasil ditambahkan ke ruangan ' . $room->name]);
+        return $this->successResponse(null, 'Range meja berhasil ditambahkan ke ruangan ' . $room->name);
     }
 
     public function availableDesks($id)
     {
         $desks = Desk::where('room_id', $id)->where('status', 'available')->get();
-        return response()->json(['data' => $desks]);
+
+        if ($desks->isEmpty()) {
+            return $this->successResponse([], 'Belum ada data');
+        }
+
+        return $this->successResponse($desks, 'Berhasil mengambil data meja tersedia');
     }
 
     public function indexDesks($id)
@@ -77,11 +83,10 @@ class RoomController extends Controller
             ];
         });
 
-        return response()->json([
-            'message' => 'Berhasil mengambil data meja',
+        return $this->successResponse([
             'room_name' => $room->name,
             'data' => $desks
-        ]);
+        ], 'Berhasil mengambil data meja');
     }
 
 }
