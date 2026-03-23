@@ -98,10 +98,10 @@ class LoanFlowTest extends TestCase
             'approved_by' => $aslab->id
         ]);
 
-        // Check desks table status changed to unavailable
+        // Check desks table status changed to occupied
         $this->assertDatabaseHas('desks', [
             'id' => $desk->id,
-            'status' => 'maintenance' // Or 'occupied', depending on your system
+            'status' => 'occupied'
         ]);
 
         // User checks in using scanned QR payload (room_id + desk_id)

@@ -8,6 +8,7 @@ use App\Actions\Loan\CreateLoanAction;
 use App\Actions\Loan\RejectLoanAction;
 use App\DTOs\Loan\ApproveLoanData;
 use App\DTOs\Loan\CheckInLoanData;
+use App\DTOs\Loan\CheckOutLoanData;
 use App\DTOs\Loan\CreateLoanData;
 use App\DTOs\Loan\RejectLoanData;
 use App\Models\Loan;
@@ -113,7 +114,9 @@ class LoanController extends Controller
     public function checkOut(CheckOutLoanAction $checkOutLoan)
     {
         try {
-            $loan = $checkOutLoan();
+            $loan = $checkOutLoan(new \App\DTOs\Loan\CheckOutLoanData(
+                userId: Auth::id(),
+            ));
 
             return $this->successResponse($loan, 'Berhasil Check-Out. Terima kasih!');
         } catch (\App\Exceptions\LoanDomainException $exception) {

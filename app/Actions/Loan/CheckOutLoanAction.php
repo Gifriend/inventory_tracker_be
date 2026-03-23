@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace App\Actions\Loan;
 
+use App\DTOs\Loan\CheckOutLoanData;
 use App\Enums\LoanStatus;
 use App\Events\LoanCheckedOut;
 use App\Exceptions\LoanDomainException;
 use App\Models\Desk;
 use App\Models\Loan;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 final class CheckOutLoanAction
 {
-    public function __invoke(): Loan
+    public function __invoke(CheckOutLoanData $data): Loan
     {
-        $loan = DB::transaction(function (): Loan {
-            $loan = Loan::where('user_id', Auth::id())
+        $loan = DB::transaction(function () use ($data): Loan {
+            $loan = Loan::where('user_id', $data->userId)
                 ->where('status', LoanStatus::APPROVED->value)
                 ->whereNotNull('check_in_time')
                 ->whereNull('check_out_time')
