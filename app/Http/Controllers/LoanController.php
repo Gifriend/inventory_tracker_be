@@ -1,34 +1,42 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Actions\Loan\ApproveLoanAction;
+use App\Actions\Loan\CheckInLoanAction;
+use App\Actions\Loan\CheckOutLoanAction;
+use App\Actions\Loan\CreateLoanAction;
+use App\Actions\Loan\RejectLoanAction;
+use App\DTOs\Loan\ApproveLoanData;
+use App\DTOs\Loan\CheckInLoanData;
+use App\DTOs\Loan\CreateLoanData;
+use App\DTOs\Loan\RejectLoanData;
 use App\Models\Loan;
 use App\Models\Desk;
+use App\Http\Requests\Loan\ApproveLoanRequest;
+use App\Http\Requests\Loan\CheckInLoanRequest;
+use App\Http\Requests\Loan\RejectLoanRequest;
+use App\Http\Requests\Loan\StoreLoanRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use App\Exceptions\LoanDomainException;
 
 class LoanController extends Controller
 {
     // User submits a loan request
-    public function store(Request $request)
+    public function store(StoreLoanRequest $request, CreateLoanAction $createLoan): \Illuminate\Http\JsonResponse
     {
-        $request->validate([
-            'pdf_file' => 'nullable|file|mimes:pdf|max:2048',
-            'start_time' => 'required|date',
-            'end_time' => 'required|date|after:start_time',
-        ]);
-
         $path = $request->hasFile('pdf_file')
             ? $request->file('pdf_file')->store('loans', 'public')
             : null;
 
-        $loan = Loan::create([
-            'user_id' => Auth::id(),
-            'document_path' => $path,
-            'start_time' => $request->start_time,
-            'end_time' => $request->end_time,
-            'status' => 'pending'
-        ]);
+        $loanData = new CreateLoanData(
+            userId: Auth::id(),
+            documentPath: $path,
+            startTime: \Carbon\CarbonImmutable::parse($request->input('start_time')),
+            endTime: \Carbon\CarbonImmutable::parse($request->input('end_time')),
+        );
+
+        $loan = $createLoan($loanData);
 
         return $this->successResponse($loan, 'Permohonan peminjaman berhasil dikirim', 201);
     }
@@ -39,9 +47,8 @@ class LoanController extends Controller
         $user = Auth::user();
         $query = Loan::with(['user:id,name', 'room:id,name', 'desk:id,desk_number']);
 
-        // If regular user, show only their own data
         if ($user->role === 'user') {
-            $query->where('user_id', $user->id);
+            $query->forUser($user->id);
         }
 
         $items = $query->get();
@@ -54,180 +61,64 @@ class LoanController extends Controller
     }
 
     // Aslab approves loan
-    public function approve(Request $request, $id)
+    public function approve(ApproveLoanRequest $request, int $id, ApproveLoanAction $approveLoan)
     {
-        $request->validate([
-            'room_id' => 'required|exists:rooms,id',
-            'desk_id' => 'required|exists:desks,id'
-        ]);
+        try {
+            $loan = $approveLoan(new ApproveLoanData(
+                loanId: $id,
+                roomId: $request->input('room_id'),
+                deskId: $request->input('desk_id'),
+                approverId: Auth::id(),
+            ));
 
-        $result = DB::transaction(function () use ($id, $request) {
-            $loan = Loan::whereKey($id)->lockForUpdate()->firstOrFail();
-
-            if ($loan->status !== 'pending') {
-                return [
-                    'ok' => false,
-                    'message' => 'Permohonan sudah diproses sebelumnya',
-                    'code' => 409,
-                ];
-            }
-
-            $desk = Desk::where('id', $request->desk_id)
-                        ->where('room_id', $request->room_id)
-                        ->lockForUpdate()
-                        ->firstOrFail();
-
-            if ($desk->status !== 'available') {
-                return [
-                    'ok' => false,
-                    'message' => 'Meja sudah terpakai',
-                    'code' => 409,
-                ];
-            }
-
-            $loan->update([
-                'status' => 'approved',
-                'room_id' => $request->room_id,
-                'desk_id' => $request->desk_id,
-                'approved_by' => Auth::id(), // Store Aslab user ID
-            ]);
-
-            $desk->update(['status' => 'occupied']);
-
-            return [
-                'ok' => true,
-                'loan' => $loan->fresh(),
-            ];
-        });
-
-        if (!$result['ok']) {
-            return $this->errorResponse($result['message'], $result['code']);
+            return $this->successResponse($loan, 'Permohonan disetujui');
+        } catch (\App\Exceptions\LoanDomainException $exception) {
+            return $this->errorResponse($exception->getMessage(), 409);
         }
-
-        return $this->successResponse($result['loan'], 'Permohonan disetujui');
     }
 
     // Aslab rejects loan
-    public function reject(Request $request, $id)
+    public function reject(RejectLoanRequest $request, int $id, RejectLoanAction $rejectLoan)
     {
-        $request->validate([
-            'admin_notes' => 'required|string'
-        ]);
+        try {
+            $rejectLoan(new RejectLoanData(
+                loanId: $id,
+                approverId: Auth::id(),
+                adminNotes: $request->input('admin_notes'),
+            ));
 
-        $loan = Loan::findOrFail($id);
-        
-        $loan->update([
-            'status' => 'rejected',
-            'admin_notes' => $request->admin_notes,
-            'approved_by' => Auth::id(),
-        ]);
-
-        return $this->successResponse(null, 'Permohonan ditolak');
+            return $this->successResponse(null, 'Permohonan ditolak');
+        } catch (\App\Exceptions\LoanDomainException $exception) {
+            return $this->errorResponse($exception->getMessage(), 409);
+        }
     }
 
     // 5. User Check-In (Scan QR Meja)
-    public function checkIn(Request $request)
+    public function checkIn(CheckInLoanRequest $request, CheckInLoanAction $checkInLoan)
     {
-        // Data ini didapat dari hasil scan QR Code di Flutter
-        $request->validate([
-            'room_id' => 'required|exists:rooms,id',
-            'desk_id' => 'required|exists:desks,id'
-        ]);
+        try {
+            $loan = $checkInLoan(new CheckInLoanData(
+                userId: Auth::id(),
+                roomId: $request->input('room_id'),
+                deskId: $request->input('desk_id'),
+            ));
 
-        $result = DB::transaction(function () use ($request) {
-            $loan = Loan::where('user_id', Auth::id())
-                        ->where('status', 'approved')
-                        ->where('room_id', $request->room_id)
-                        ->where('desk_id', $request->desk_id)
-                        ->whereNull('check_in_time')
-                        ->lockForUpdate()
-                        ->first();
-
-            if (!$loan) {
-                return [
-                    'ok' => false,
-                    'message' => 'Tidak ada jadwal peminjaman valid untuk meja ini atau Anda sudah Check-In.',
-                    'code' => 404,
-                ];
-            }
-
-            $desk = Desk::whereKey($request->desk_id)->lockForUpdate()->first();
-
-            if (!$desk || $desk->room_id !== (int) $request->room_id) {
-                return [
-                    'ok' => false,
-                    'message' => 'Meja tidak valid untuk ruangan ini.',
-                    'code' => 409,
-                ];
-            }
-
-            if ($desk->status === 'maintenance') {
-                return [
-                    'ok' => false,
-                    'message' => 'Meja sedang maintenance.',
-                    'code' => 409,
-                ];
-            }
-
-            $loan->update(['check_in_time' => now()]);
-
-            if ($desk->status !== 'occupied') {
-                $desk->update(['status' => 'occupied']);
-            }
-
-            return [
-                'ok' => true,
-                'loan' => $loan->fresh(),
-            ];
-        });
-
-        if (!$result['ok']) {
-            return $this->errorResponse($result['message'], $result['code']);
+            return $this->successResponse($loan, 'Berhasil Check-In. Selamat menggunakan fasilitas lab!');
+        } catch (\App\Exceptions\LoanDomainException $exception) {
+            return $this->errorResponse($exception->getMessage(), 409);
         }
-
-        return $this->successResponse($result['loan'], 'Berhasil Check-In. Selamat menggunakan fasilitas lab!');
     }
 
     // 6. User Check-Out (Selesai menggunakan meja)
-    public function checkOut(Request $request)
+    public function checkOut(CheckOutLoanAction $checkOutLoan)
     {
-        $result = DB::transaction(function () {
-            $loan = Loan::where('user_id', Auth::id())
-                        ->where('status', 'approved')
-                        ->whereNotNull('check_in_time')
-                        ->whereNull('check_out_time')
-                        ->lockForUpdate()
-                        ->first();
+        try {
+            $loan = $checkOutLoan();
 
-            if (!$loan) {
-                return [
-                    'ok' => false,
-                    'message' => 'Anda belum Check-In atau tidak ada sesi aktif.',
-                    'code' => 404,
-                ];
-            }
-
-            $loan->update([
-                'check_out_time' => now(),
-                'status' => 'completed'
-            ]);
-
-            $desk = Desk::whereKey($loan->desk_id)->lockForUpdate()->first();
-            if ($desk) {
-                $desk->update(['status' => 'available']);
-            }
-
-            return [
-                'ok' => true,
-                'loan' => $loan->fresh(),
-            ];
-        });
-
-        if (!$result['ok']) {
-            return $this->errorResponse($result['message'], $result['code']);
+            return $this->successResponse($loan, 'Berhasil Check-Out. Terima kasih!');
+        } catch (\App\Exceptions\LoanDomainException $exception) {
+            return $this->errorResponse($exception->getMessage(), 404);
         }
-
-        return $this->successResponse($result['loan'], 'Berhasil Check-Out. Terima kasih!');
     }
 
     // Loan history (completed or rejected / past loans)
@@ -237,14 +128,10 @@ class LoanController extends Controller
         $query = Loan::with(['user:id,name', 'room:id,name', 'desk:id,desk_number']);
 
         if ($user->role === 'user') {
-            $query->where('user_id', $user->id);
+            $query->forUser($user->id);
         }
 
-        // History: completed, rejected or already checked-out
-        $items = $query->where(function ($q) {
-            $q->whereIn('status', ['completed', 'rejected'])
-              ->orWhereNotNull('check_out_time');
-        })->get();
+        $items = $query->history()->get();
 
         if ($items->isEmpty()) {
             return $this->successResponse([], 'Belum ada data');

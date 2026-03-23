@@ -50,4 +50,27 @@ class Loan extends Model
     {
         return $this->belongsTo(User::class, 'approved_by');
     }
+
+    public function scopeForUser($query, int $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'approved');
+    }
+
+    public function scopeHistory($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereIn('status', ['completed', 'rejected'])
+              ->orWhereNotNull('check_out_time');
+        });
+    }
 }
