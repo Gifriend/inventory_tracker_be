@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\LabRequest;
 
 use App\DTOs\LabRequest\CreateLabRequestData;
+use App\Enums\LabRequestStatus;
 use App\Events\LabRequestCreated;
 use App\Models\LabRequest;
 
@@ -16,7 +17,7 @@ final class CreateLabRequestAction
             'user_id' => $data->userId,
             'pdf_path' => $data->pdfPath,
             'message' => $data->message,
-            'status' => 'pending',
+            'status' => LabRequestStatus::PENDING->value,
         ]);
 
         event(new LabRequestCreated($request));

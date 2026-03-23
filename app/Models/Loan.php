@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\LoanStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -58,18 +59,18 @@ class Loan extends Model
 
     public function scopePending($query)
     {
-        return $query->where('status', 'pending');
+        return $query->where('status', LoanStatus::PENDING->value);
     }
 
     public function scopeActive($query)
     {
-        return $query->where('status', 'approved');
+        return $query->where('status', LoanStatus::APPROVED->value);
     }
 
     public function scopeHistory($query)
     {
         return $query->where(function ($q) {
-            $q->whereIn('status', ['completed', 'rejected'])
+            $q->whereIn('status', [LoanStatus::COMPLETED->value, LoanStatus::REJECTED->value])
               ->orWhereNotNull('check_out_time');
         });
     }

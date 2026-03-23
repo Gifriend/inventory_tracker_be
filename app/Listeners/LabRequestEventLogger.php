@@ -8,10 +8,14 @@ use App\Events\LabRequestApproved;
 use App\Events\LabRequestCreated;
 use App\Events\LabRequestRejected;
 use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Log\LogManager;
 
-final class LabRequestEventLogger
+final class LabRequestEventLogger implements ShouldQueue
 {
+    use InteractsWithQueue;
+
     public function __construct(private LogManager $logger)
     {
     }

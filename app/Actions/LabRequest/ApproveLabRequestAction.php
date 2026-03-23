@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\LabRequest;
 
 use App\DTOs\LabRequest\ApproveLabRequestData;
+use App\Enums\LabRequestStatus;
 use App\Events\LabRequestApproved;
 use App\Exceptions\LoanDomainException;
 use App\Models\LabRequest;
@@ -18,7 +19,7 @@ final class ApproveLabRequestAction
         $labRequest = DB::transaction(function () use ($data): LabRequest {
             $labRequest = LabRequest::whereKey($data->requestId)->lockForUpdate()->firstOrFail();
 
-            if ($labRequest->status !== 'pending') {
+            if ($labRequest->status !== LabRequestStatus::PENDING->value) {
                 throw new LoanDomainException('Permohonan sudah diproses sebelumnya');
             }
 
@@ -32,7 +33,7 @@ final class ApproveLabRequestAction
             }
 
             $labRequest->update([
-                'status' => 'approved',
+                'status' => LabRequestStatus::APPROVED->value,
                 'lab_id' => $data->labId,
                 'table_id' => $data->tableId,
             ]);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\LabRequest;
 
 use App\DTOs\LabRequest\RejectLabRequestData;
+use App\Enums\LabRequestStatus;
 use App\Events\LabRequestRejected;
 use App\Exceptions\LoanDomainException;
 use App\Models\LabRequest;
@@ -17,11 +18,11 @@ final class RejectLabRequestAction
         $labRequest = DB::transaction(function () use ($data): LabRequest {
             $labRequest = LabRequest::whereKey($data->requestId)->lockForUpdate()->firstOrFail();
 
-            if ($labRequest->status !== 'pending') {
+            if ($labRequest->status !== LabRequestStatus::PENDING->value) {
                 throw new LoanDomainException('Permohonan sudah diproses sebelumnya');
             }
 
-            $labRequest->update(['status' => 'rejected']);
+            $labRequest->update(['status' => LabRequestStatus::REJECTED->value]);
 
             return $labRequest->fresh();
         });

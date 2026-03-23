@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Loan;
 
 use App\DTOs\Loan\ApproveLoanData;
+use App\Enums\LoanStatus;
 use App\Events\LoanApproved;
 use App\Exceptions\LoanDomainException;
 use App\Models\Desk;
@@ -18,7 +19,7 @@ final class ApproveLoanAction
         $loan = DB::transaction(function () use ($data): Loan {
             $loan = Loan::whereKey($data->loanId)->lockForUpdate()->firstOrFail();
 
-            if ($loan->status !== 'pending') {
+            if ($loan->status !== LoanStatus::PENDING->value) {
                 throw new LoanDomainException('Permohonan sudah diproses sebelumnya');
             }
 
@@ -32,7 +33,7 @@ final class ApproveLoanAction
             }
 
             $loan->update([
-                'status' => 'approved',
+                'status' => LoanStatus::APPROVED->value,
                 'room_id' => $data->roomId,
                 'desk_id' => $data->deskId,
                 'approved_by' => $data->approverId,

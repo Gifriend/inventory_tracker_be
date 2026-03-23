@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Loan;
 
 use App\DTOs\Loan\CreateLoanData;
+use App\Enums\LoanStatus;
 use App\Events\LoanCreated;
 use App\Models\Loan;
 
@@ -17,7 +18,7 @@ final class CreateLoanAction
             'document_path' => $data->documentPath,
             'start_time' => $data->startTime,
             'end_time' => $data->endTime,
-            'status' => 'pending',
+            'status' => LoanStatus::PENDING->value,
         ]);
 
         event(new LoanCreated($loan));

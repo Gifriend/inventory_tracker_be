@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Loan;
 
+use App\Enums\LoanStatus;
 use App\Events\LoanCheckedOut;
 use App\Exceptions\LoanDomainException;
 use App\Models\Desk;
@@ -17,7 +18,7 @@ final class CheckOutLoanAction
     {
         $loan = DB::transaction(function (): Loan {
             $loan = Loan::where('user_id', Auth::id())
-                ->where('status', 'approved')
+                ->where('status', LoanStatus::APPROVED->value)
                 ->whereNotNull('check_in_time')
                 ->whereNull('check_out_time')
                 ->lockForUpdate()

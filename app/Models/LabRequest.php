@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\LabRequestStatus;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\User;
 
@@ -29,6 +30,10 @@ class LabRequest extends Model
 
     public function scopeHistory($query)
     {
-        return $query->whereIn('status', ['approved', 'completed', 'rejected']);
+        return $query->whereIn('status', [
+            LabRequestStatus::APPROVED->value,
+            LabRequestStatus::COMPLETED->value,
+            LabRequestStatus::REJECTED->value,
+        ]);
     }
 }

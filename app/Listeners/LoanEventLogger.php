@@ -10,10 +10,14 @@ use App\Events\LoanCheckedOut;
 use App\Events\LoanCreated;
 use App\Events\LoanRejected;
 use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Log\LogManager;
 
-final class LoanEventLogger
+final class LoanEventLogger implements ShouldQueue
 {
+    use InteractsWithQueue;
+
     public function __construct(private LogManager $logger)
     {
     }
