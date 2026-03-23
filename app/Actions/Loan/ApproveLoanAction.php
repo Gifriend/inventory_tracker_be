@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Loan;
 
 use App\DTOs\Loan\ApproveLoanData;
+use App\Events\LoanApproved;
 use App\Exceptions\LoanDomainException;
 use App\Models\Desk;
 use App\Models\Loan;
@@ -14,7 +15,7 @@ final class ApproveLoanAction
 {
     public function __invoke(ApproveLoanData $data): Loan
     {
-        return DB::transaction(function () use ($data): Loan {
+        $loan = DB::transaction(function () use ($data): Loan {
             $loan = Loan::whereKey($data->loanId)->lockForUpdate()->firstOrFail();
 
             if ($loan->status !== 'pending') {
@@ -41,5 +42,9 @@ final class ApproveLoanAction
 
             return $loan->fresh();
         });
+
+        event(new LoanApproved($loan));
+
+        return $loan;
     }
 }

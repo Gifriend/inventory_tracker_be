@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Loan;
 
 use App\DTOs\Loan\CheckInLoanData;
+use App\Events\LoanCheckedIn;
 use App\Exceptions\LoanDomainException;
 use App\Models\Desk;
 use App\Models\Loan;
@@ -14,7 +15,7 @@ final class CheckInLoanAction
 {
     public function __invoke(CheckInLoanData $data): Loan
     {
-        return DB::transaction(function () use ($data): Loan {
+        $loan = DB::transaction(function () use ($data): Loan {
             $loan = Loan::where('user_id', $data->userId)
                 ->where('status', 'approved')
                 ->where('room_id', $data->roomId)
@@ -45,5 +46,9 @@ final class CheckInLoanAction
 
             return $loan->fresh();
         });
+
+        event(new LoanCheckedIn($loan));
+
+        return $loan;
     }
 }

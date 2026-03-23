@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Loan;
 
 use App\DTOs\Loan\RejectLoanData;
+use App\Events\LoanRejected;
 use App\Exceptions\LoanDomainException;
 use App\Models\Loan;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ final class RejectLoanAction
 {
     public function __invoke(RejectLoanData $data): Loan
     {
-        return DB::transaction(function () use ($data): Loan {
+        $loan = DB::transaction(function () use ($data): Loan {
             $loan = Loan::whereKey($data->loanId)->lockForUpdate()->firstOrFail();
 
             if ($loan->status !== 'pending') {
@@ -28,5 +29,9 @@ final class RejectLoanAction
 
             return $loan->fresh();
         });
+
+        event(new LoanRejected($loan));
+
+        return $loan;
     }
 }

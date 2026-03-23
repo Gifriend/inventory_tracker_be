@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Loan;
 
+use App\Events\LoanCheckedOut;
 use App\Exceptions\LoanDomainException;
 use App\Models\Desk;
 use App\Models\Loan;
@@ -14,7 +15,7 @@ final class CheckOutLoanAction
 {
     public function __invoke(): Loan
     {
-        return DB::transaction(function (): Loan {
+        $loan = DB::transaction(function (): Loan {
             $loan = Loan::where('user_id', Auth::id())
                 ->where('status', 'approved')
                 ->whereNotNull('check_in_time')
@@ -38,5 +39,9 @@ final class CheckOutLoanAction
 
             return $loan->fresh();
         });
+
+        event(new LoanCheckedOut($loan));
+
+        return $loan;
     }
 }

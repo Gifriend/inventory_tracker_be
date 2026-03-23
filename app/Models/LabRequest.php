@@ -13,10 +13,22 @@ class LabRequest extends Model
     public function user() {
         return $this->belongsTo(User::class);
     }
+
     public function lab() {
         return $this->belongsTo(Lab::class);
     }
+
     public function table() {
         return $this->belongsTo(Table::class);
+    }
+
+    public function scopeForUser($query, int $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    public function scopeHistory($query)
+    {
+        return $query->whereIn('status', ['approved', 'completed', 'rejected']);
     }
 }
